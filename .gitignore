@@ -1,0 +1,17 @@
+# Visual Studio / .NET build outputs
+**/bin/
+**/obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+TestResults/
+
+# Runtime logs and cache
+*.log
+Cache/
+MapTilerPlugin.log
+
+# Archives
+*.zip
