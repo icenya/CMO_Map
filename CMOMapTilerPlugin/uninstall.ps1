@@ -1,0 +1,47 @@
+# CMOMapTilerPlugin 一鍵解除安裝腳本 (PowerShell)
+[CmdletBinding()]
+param(
+    [string]$TargetDir = $PSScriptRoot
+)
+
+$ErrorActionPreference = "Stop"
+
+Write-Host "============================================================" -ForegroundColor Cyan
+Write-Host "    CMOMapTilerPlugin - MapTiler 外掛解除安裝程式" -ForegroundColor Cyan
+Write-Host "============================================================" -ForegroundColor Cyan
+
+$cmdExePath = Join-Path $TargetDir "Command.exe"
+if (-not (Test-Path $cmdExePath)) {
+    Write-Host "[提示] 在目前目錄找不到 Command.exe。" -ForegroundColor Yellow
+    $userInput = Read-Host "請輸入 Command: Modern Operations 遊戲安裝目錄"
+    if ([string]::IsNullOrWhiteSpace($userInput) -or -not (Test-Path (Join-Path $userInput "Command.exe"))) {
+        Write-Host "[錯誤] 指定目錄未找到 Command.exe，解除安裝中止。" -ForegroundColor Red
+        return
+    }
+    $TargetDir = $userInput
+}
+
+$configPath = Join-Path $TargetDir "Command.exe.config"
+$backupPath = Join-Path $TargetDir "Command.exe.config.bak"
+
+if (Test-Path $backupPath) {
+    Copy-Item -Path $backupPath -Destination $configPath -Force
+    Remove-Item -Path $backupPath -Force
+    Write-Host "[OK] 已從備份還原原始 Command.exe.config。" -ForegroundColor Green
+} elseif (Test-Path $configPath) {
+    [xml]$xml = Get-Content -Path $configPath -Raw -Encoding UTF8
+    $runtime = $xml.configuration.runtime
+    if ($null -ne $runtime) {
+        $nodeAsm = $runtime.SelectSingleNode("appDomainManagerAssembly")
+        if ($null -ne $nodeAsm) { $runtime.RemoveChild($nodeAsm) | Out-Null }
+
+        $nodeType = $runtime.SelectSingleNode("appDomainManagerType")
+        if ($null -ne $nodeType) { $runtime.RemoveChild($nodeType) | Out-Null }
+
+        $xml.Save($configPath)
+        Write-Host "[OK] 已自 Command.exe.config 移除外掛設定。" -ForegroundColor Green
+    }
+}
+
+Write-Host "解除安裝完成！遊戲已恢復原始狀態。" -ForegroundColor Green
+Write-Host "============================================================" -ForegroundColor Cyan
