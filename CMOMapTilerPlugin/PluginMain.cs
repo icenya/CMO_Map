@@ -26,7 +26,7 @@ namespace CMOMapTilerPlugin
                 Logger.Verbose = Config.VerboseLogging;
 
                 Logger.Info("==================================================================");
-                Logger.Info("  CMOMapTilerPlugin v1.0.0 (x64) Initialized");
+                Logger.Info("  CMOMapTilerPlugin v1.0.1 (x64) Initialized");
                 Logger.Info($"  Base Directory: {baseDir}");
                 Logger.Info($"  Enabled: {Config.Enabled}");
                 Logger.Info($"  API Key: {(string.IsNullOrEmpty(Config.ApiKey) || Config.ApiKey.Contains("YOUR_MAPTILER_API_KEY") ? "[NOT SET - PLEASE CONFIGURE IN MapTilerPlugin.ini]" : "[CONFIGURED]")}");
