@@ -75,11 +75,32 @@ if ((Test-Path $srcDll) -and ($srcDll -ne $dstDll)) {
 
 $srcIni = Join-Path $scriptDir "MapTilerPlugin.ini"
 $dstIni = Join-Path $TargetDir "MapTilerPlugin.ini"
+
+# 檢查是否有誤放在 Config 資料夾下的 MapTilerPlugin.ini，自動遷移並清除以防 CMO 崩潰
+$configSubdirIni = Join-Path $TargetDir "Config\MapTilerPlugin.ini"
+if (Test-Path $configSubdirIni) {
+    try {
+        [System.IO.File]::SetAttributes($configSubdirIni, [System.IO.FileAttributes]::Normal)
+        if (-not (Test-Path $dstIni)) {
+            Copy-Item -Path $configSubdirIni -Destination $dstIni -Force
+            Write-Host "[提示] 偵測到 Config\MapTilerPlugin.ini，已為您自動遷移至遊戲根目錄。" -ForegroundColor Green
+        }
+        Remove-Item -Path $configSubdirIni -Force
+        Write-Host "[提示] 已清除 Config 資料夾內的 MapTilerPlugin.ini（避免 Command.exe 內部清理常式崩潰）。" -ForegroundColor Green
+    } catch {
+        Write-Host "[警告] 處理 Config\MapTilerPlugin.ini 發生問題: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+}
+
 if ((Test-Path $srcIni) -and ($srcIni -ne $dstIni) -and (-not (Test-Path $dstIni))) {
     Copy-Item -Path $srcIni -Destination $dstIni -Force
     Write-Host "[OK] 已複製 MapTilerPlugin.ini 到遊戲目錄。" -ForegroundColor Green
 } elseif (Test-Path $dstIni) {
-    Write-Host "[OK] MapTilerPlugin.ini 設定檔已存在。" -ForegroundColor Green
+    # 確保遊戲根目錄下的設定檔非唯讀
+    try {
+        [System.IO.File]::SetAttributes($dstIni, [System.IO.FileAttributes]::Normal)
+    } catch {}
+    Write-Host "[OK] MapTilerPlugin.ini 設定檔已就緒。" -ForegroundColor Green
 }
 
 # 3. 檢查是否存在 CMOLocalizer (漢化模組)
@@ -156,7 +177,9 @@ if (Test-Path $configPath) {
 Write-Host "------------------------------------------------------------" -ForegroundColor Cyan
 Write-Host "安裝完成！" -ForegroundColor Green
 Write-Host "重要提醒:" -ForegroundColor Yellow
-Write-Host "1. 請使用文字編輯器打開遊戲目錄下的 'MapTilerPlugin.ini'" -ForegroundColor Yellow
+Write-Host "1. 請使用文字編輯器打開遊戲根目錄下的 'MapTilerPlugin.ini'" -ForegroundColor Yellow
+Write-Host "   路徑: $dstIni" -ForegroundColor Cyan
+Write-Host "   【注意】請務必在遊戲根目錄修改！請勿放入 Config 資料夾（CMO 啟動時會清理 Config 資料夾）。" -ForegroundColor Red
 Write-Host "2. 將 ApiKey=YOUR_MAPTILER_API_KEY_HERE 替換為您的 MapTiler 專屬 Key" -ForegroundColor Yellow
 Write-Host "3. 啟動遊戲後，於主視窗圖層勾選『Bing Maps』，即可享受 MapTiler 衛星混合高清圖磚！" -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Cyan
