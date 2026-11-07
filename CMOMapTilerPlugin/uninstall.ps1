@@ -49,8 +49,23 @@ if (-not (Test-Path $cmdExePath)) {
 
 $configPath = Join-Path $TargetDir "Command.exe.config"
 $backupPath = Join-Path $TargetDir "Command.exe.config.bak"
+$hasLocalizer = Test-Path (Join-Path $TargetDir "CMOLocalizer.dll")
 
-if (Test-Path $backupPath) {
+if ($hasLocalizer -and (Test-Path $configPath)) {
+    # 若存在漢化模組，將 AppDomainManager 自動改回指向 CMOLocalizer 以保留漢化功能
+    [xml]$xml = Get-Content -Path $configPath -Raw -Encoding UTF8
+    $runtime = $xml.configuration.runtime
+    if ($null -ne $runtime) {
+        $nodeAsm = $runtime.SelectSingleNode("appDomainManagerAssembly")
+        if ($null -ne $nodeAsm) { $nodeAsm.SetAttribute("value", "CMOLocalizer, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null") }
+
+        $nodeType = $runtime.SelectSingleNode("appDomainManagerType")
+        if ($null -ne $nodeType) { $nodeType.SetAttribute("value", "CMOLocalizer.LocalizerDomainManager") }
+
+        $xml.Save($configPath)
+        Write-Host "[OK] 偵測到 CMOLocalizer.dll，已將 Command.exe.config 還原為漢化模組配置。" -ForegroundColor Green
+    }
+} elseif (Test-Path $backupPath) {
     Copy-Item -Path $backupPath -Destination $configPath -Force
     Remove-Item -Path $backupPath -Force
     Write-Host "[OK] 已從備份還原原始 Command.exe.config。" -ForegroundColor Green

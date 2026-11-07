@@ -82,7 +82,14 @@ if ((Test-Path $srcIni) -and ($srcIni -ne $dstIni) -and (-not (Test-Path $dstIni
     Write-Host "[OK] MapTilerPlugin.ini 設定檔已存在。" -ForegroundColor Green
 }
 
-# 3. 配置 Command.exe.config
+# 3. 檢查是否存在 CMOLocalizer (漢化模組)
+$hasLocalizer = Test-Path (Join-Path $TargetDir "CMOLocalizer.dll")
+if ($hasLocalizer) {
+    Write-Host "[OK] 偵測到 CMOLocalizer.dll (漢化模組)！" -ForegroundColor Cyan
+    Write-Host "     已自動啟用雙外掛鏈結兼職模式：啟動遊戲時將同時載入【MapTiler 衛星高清圖磚】與【中文漢化界面】。" -ForegroundColor Cyan
+}
+
+# 4. 配置 Command.exe.config
 $configPath = Join-Path $TargetDir "Command.exe.config"
 $backupPath = Join-Path $TargetDir "Command.exe.config.bak"
 
@@ -106,7 +113,7 @@ if (Test-Path $configPath) {
         $xml.configuration.AppendChild($runtime) | Out-Null
     }
 
-    # 檢查是否已存在設定
+    # 設定 AppDomainManager 注入點至 CMOMapTilerPlugin (由其負責鏈結 CMOLocalizer)
     $existingAsm = $runtime.SelectSingleNode("appDomainManagerAssembly")
     if ($null -eq $existingAsm) {
         $elemAsm = $xml.CreateElement("appDomainManagerAssembly")
