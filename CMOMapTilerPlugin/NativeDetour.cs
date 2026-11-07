@@ -54,6 +54,16 @@ namespace CMOMapTilerPlugin
                 throw new PlatformNotSupportedException("NativeDetour requires 64-bit architecture (x64).");
             }
 
+            // Ensure declaring type static constructors have run
+            if (source.DeclaringType != null)
+            {
+                try { RuntimeHelpers.RunClassConstructor(source.DeclaringType.TypeHandle); } catch { }
+            }
+            if (destination.DeclaringType != null)
+            {
+                try { RuntimeHelpers.RunClassConstructor(destination.DeclaringType.TypeHandle); } catch { }
+            }
+
             // 1. Force JIT compilation of both methods
             // For .NET Reactor (NecroBit), this triggers the clrjit.dll compileMethod hook to decrypt real IL
             RuntimeHelpers.PrepareMethod(source.MethodHandle);

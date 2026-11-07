@@ -11,9 +11,9 @@
     <LangVersion>latest</LangVersion>
     <Deterministic>true</Deterministic>
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
-    <Version>1.0.1.0</Version>
-    <AssemblyVersion>1.0.1.0</AssemblyVersion>
-    <FileVersion>1.0.1.0</FileVersion>
+    <Version>1.0.2.0</Version>
+    <AssemblyVersion>1.0.2.0</AssemblyVersion>
+    <FileVersion>1.0.2.0</FileVersion>
     <Description>MapTiler Satellite Hybrid Tile Plugin for Command: Modern Operations (with CMOLocalizer Chaining Support)</Description>
   </PropertyGroup>
 

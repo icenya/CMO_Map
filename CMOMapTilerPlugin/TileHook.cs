@@ -29,51 +29,61 @@ namespace CMOMapTilerPlugin
                 {
                     Logger.Info($"Searching for target types in assembly '{commandAssembly.FullName}'...");
 
-                    // 1. Locate DXRenderer.TileCache
-                    Type tileCacheType = commandAssembly.GetType("DXRenderer.TileCache", false);
-                    if (tileCacheType != null)
+                    // 1. Locate DXRenderer.TileCache (Primary hook for Bing Satellite tiles)
+                    try
                     {
-                        MethodInfo loadBingMethod = tileCacheType.GetMethod("LoadBingTile", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-                        if (loadBingMethod != null)
+                        Type tileCacheType = commandAssembly.GetType("DXRenderer.TileCache", false);
+                        if (tileCacheType != null)
                         {
-                            MethodInfo hookMethod = typeof(TileHook).GetMethod(nameof(Hook_LoadBingTile), BindingFlags.Static | BindingFlags.Public);
-                            var detour = NativeDetour.Create(loadBingMethod, hookMethod);
-                            _activeDetours.Add(detour);
-                            Logger.Info("Successfully hooked 'DXRenderer.TileCache::LoadBingTile'!");
+                            MethodInfo loadBingMethod = tileCacheType.GetMethod("LoadBingTile", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                            if (loadBingMethod != null)
+                            {
+                                MethodInfo hookMethod = typeof(TileHook).GetMethod(nameof(Hook_LoadBingTile), BindingFlags.Static | BindingFlags.Public);
+                                var detour = NativeDetour.Create(loadBingMethod, hookMethod);
+                                _activeDetours.Add(detour);
+                                _isHookInstalled = true;
+                                Logger.Info("Successfully hooked 'DXRenderer.TileCache::LoadBingTile'!");
+                            }
+                            else
+                            {
+                                Logger.Warn("Method 'DXRenderer.TileCache::LoadBingTile' not found!");
+                            }
                         }
                         else
                         {
-                            Logger.Warn("Method 'DXRenderer.TileCache::LoadBingTile' not found!");
+                            Logger.Warn("Type 'DXRenderer.TileCache' not found in assembly!");
                         }
                     }
-                    else
+                    catch (Exception ex)
                     {
-                        Logger.Warn("Type 'DXRenderer.TileCache' not found in assembly!");
+                        Logger.Error($"Failed to hook 'DXRenderer.TileCache::LoadBingTile': {ex}");
                     }
 
-                    // 2. Locate CSMaterial.HTTPHelper
-                    Type httpHelperType = commandAssembly.GetType("CSMaterial.HTTPHelper", false);
-                    if (httpHelperType != null)
+                    // 2. Locate CSMaterial.HTTPHelper (Secondary / optional hook)
+                    try
                     {
-                        MethodInfo downloadTileMethod = httpHelperType.GetMethod("DownloadTile", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
-                        if (downloadTileMethod != null)
+                        Type httpHelperType = commandAssembly.GetType("CSMaterial.HTTPHelper", false);
+                        if (httpHelperType != null)
                         {
-                            MethodInfo hookMethod = typeof(TileHook).GetMethod(nameof(Hook_DownloadTile), BindingFlags.Static | BindingFlags.Public);
-                            var detour = NativeDetour.Create(downloadTileMethod, hookMethod);
-                            _activeDetours.Add(detour);
-                            Logger.Info("Successfully hooked 'CSMaterial.HTTPHelper::DownloadTile'!");
-                        }
-                        else
-                        {
-                            Logger.Warn("Method 'CSMaterial.HTTPHelper::DownloadTile' not found!");
+                            MethodInfo downloadTileMethod = httpHelperType.GetMethod("DownloadTile", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+                            if (downloadTileMethod != null)
+                            {
+                                MethodInfo hookMethod = typeof(TileHook).GetMethod(nameof(Hook_DownloadTile), BindingFlags.Static | BindingFlags.Public);
+                                var detour = NativeDetour.Create(downloadTileMethod, hookMethod);
+                                _activeDetours.Add(detour);
+                                Logger.Info("Successfully hooked 'CSMaterial.HTTPHelper::DownloadTile'!");
+                            }
+                            else
+                            {
+                                Logger.Warn("Method 'CSMaterial.HTTPHelper::DownloadTile' not found!");
+                            }
                         }
                     }
-                    else
+                    catch (Exception ex)
                     {
-                        Logger.Warn("Type 'CSMaterial.HTTPHelper' not found in assembly!");
+                        Logger.Warn($"Optional hook 'CSMaterial.HTTPHelper::DownloadTile' skipped: {ex.Message}");
                     }
 
-                    _isHookInstalled = _activeDetours.Count > 0;
                     if (_isHookInstalled)
                     {
                         Logger.Info($"TileHook installation finished. Installed {_activeDetours.Count} detours.");
@@ -98,6 +108,11 @@ namespace CMOMapTilerPlugin
 
             var config = PluginMain.Config;
             if (config == null || !config.Enabled)
+            {
+                return FallbackToBing(id);
+            }
+
+            if (string.IsNullOrEmpty(config.ApiKey) || config.ApiKey.Contains("YOUR_MAPTILER_API_KEY"))
             {
                 return FallbackToBing(id);
             }

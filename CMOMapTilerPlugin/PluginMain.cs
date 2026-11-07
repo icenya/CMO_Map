@@ -18,7 +18,7 @@ namespace CMOMapTilerPlugin
             try
             {
                 string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-                string iniPath = Path.Combine(baseDir, "MapTilerPlugin.ini");
+                string iniPath = ResolveAndMigrateConfigPath(baseDir);
 
                 // 1. Load configuration
                 Config = PluginConfig.Load(iniPath);
@@ -26,8 +26,9 @@ namespace CMOMapTilerPlugin
                 Logger.Verbose = Config.VerboseLogging;
 
                 Logger.Info("==================================================================");
-                Logger.Info("  CMOMapTilerPlugin v1.0.1 (x64) Initialized");
+                Logger.Info("  CMOMapTilerPlugin v1.0.2 (x64) Initialized");
                 Logger.Info($"  Base Directory: {baseDir}");
+                Logger.Info($"  Config File: {iniPath}");
                 Logger.Info($"  Enabled: {Config.Enabled}");
                 Logger.Info($"  API Key: {(string.IsNullOrEmpty(Config.ApiKey) || Config.ApiKey.Contains("YOUR_MAPTILER_API_KEY") ? "[NOT SET - PLEASE CONFIGURE IN MapTilerPlugin.ini]" : "[CONFIGURED]")}");
                 Logger.Info($"  URL Template: {Config.UrlTemplate}");
@@ -65,6 +66,76 @@ namespace CMOMapTilerPlugin
             }
         }
 
+        private static string ResolveAndMigrateConfigPath(string baseDir)
+        {
+            string rootIni = Path.Combine(baseDir, "MapTilerPlugin.ini");
+            string configSubdirIni = Path.Combine(baseDir, "Config", "MapTilerPlugin.ini");
+
+            try
+            {
+                // Ensure root ini is not read-only so it can be read and updated freely
+                if (File.Exists(rootIni))
+                {
+                    try
+                    {
+                        FileAttributes attrs = File.GetAttributes(rootIni);
+                        if ((attrs & FileAttributes.ReadOnly) != 0)
+                        {
+                            File.SetAttributes(rootIni, attrs & ~FileAttributes.ReadOnly);
+                        }
+                    }
+                    catch { }
+                }
+
+                // Check if user placed MapTilerPlugin.ini inside the Config/ subdirectory
+                // (which triggers CMO's Command.Client.ConsolidateConfigFiles() to delete it or crash if read-only)
+                if (File.Exists(configSubdirIni))
+                {
+                    try
+                    {
+                        // 1. Remove Read-Only flag immediately in case user marked it read-only
+                        FileAttributes attrs = File.GetAttributes(configSubdirIni);
+                        if ((attrs & FileAttributes.ReadOnly) != 0)
+                        {
+                            File.SetAttributes(configSubdirIni, attrs & ~FileAttributes.ReadOnly);
+                        }
+
+                        // 2. Inspect if config in Config/ has a configured API key
+                        bool rootNeedsConfig = !File.Exists(rootIni);
+                        if (!rootNeedsConfig)
+                        {
+                            var existingConfig = PluginConfig.Load(rootIni);
+                            if (string.IsNullOrEmpty(existingConfig.ApiKey) || existingConfig.ApiKey.Contains("YOUR_MAPTILER_API_KEY"))
+                            {
+                                rootNeedsConfig = true;
+                            }
+                        }
+
+                        // 3. Migrate to root if needed
+                        if (rootNeedsConfig)
+                        {
+                            File.Copy(configSubdirIni, rootIni, true);
+                            Logger.Info($"Auto-migrated config from '{configSubdirIni}' to root '{rootIni}'.");
+                        }
+
+                        // 4. Safely delete from Config/ so CMO ConsolidateConfigFiles() will not encounter it
+                        File.Delete(configSubdirIni);
+                        Logger.Info($"Removed '{configSubdirIni}' from CMO Config directory to prevent startup deletion/crash conflicts.");
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Warn($"Failed to migrate/cleanup config in Config folder: {ex.Message}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"Error in ResolveAndMigrateConfigPath: {ex.Message}");
+            }
+
+            return rootIni;
+        }
+
         private static bool IsCommandAssembly(Assembly asm)
         {
             if (asm == null) return false;
@@ -81,13 +152,15 @@ namespace CMOMapTilerPlugin
 
         private static bool TryHookLoadedAssemblies()
         {
+            if (TileHook.IsInstalled) return true;
+
             foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
             {
                 if (IsCommandAssembly(asm))
                 {
                     Logger.Info($"Found pre-loaded Command assembly: {asm.FullName}");
                     TileHook.Install(asm);
-                    return true;
+                    return TileHook.IsInstalled;
                 }
             }
             return false;
