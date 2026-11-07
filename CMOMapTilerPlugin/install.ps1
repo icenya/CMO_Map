@@ -2,21 +2,50 @@
 # 作用: 將 CMOMapTilerPlugin 自動配置至 Command: Modern Operations
 [CmdletBinding()]
 param(
-    [string]$TargetDir = $PSScriptRoot
+    [string]$TargetDir = ""
 )
 
 $ErrorActionPreference = "Stop"
+
+# 確保輸出支援 UTF-8
+try {
+    [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+    $OutputEncoding = [System.Text.Encoding]::UTF8
+} catch {}
 
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host "    CMOMapTilerPlugin - MapTiler 外掛自動安裝程式" -ForegroundColor Cyan
 Write-Host "============================================================" -ForegroundColor Cyan
 
+# 解析外掛所在目錄 (相容 PowerShell 2.0 ~ 7.x)
+$scriptDir = $PSScriptRoot
+if ([string]::IsNullOrWhiteSpace($scriptDir) -and $MyInvocation.MyCommand.Path) {
+    $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+}
+if ([string]::IsNullOrWhiteSpace($scriptDir)) {
+    $scriptDir = (Get-Location).Path
+}
+
+# 若未指定 TargetDir，預設使用腳本所在目錄
+if ([string]::IsNullOrWhiteSpace($TargetDir)) {
+    $TargetDir = $scriptDir
+}
+
+# 去除結尾斜線
+$TargetDir = $TargetDir.TrimEnd('\').TrimEnd('/')
+$scriptDir = $scriptDir.TrimEnd('\').TrimEnd('/')
+
 # 1. 檢查目錄中是否存在 Command.exe
 $cmdExePath = Join-Path $TargetDir "Command.exe"
 if (-not (Test-Path $cmdExePath)) {
-    Write-Host "[提示] 在目前目錄找不到 Command.exe。" -ForegroundColor Yellow
+    Write-Host "[提示] 在目前目錄找不到 Command.exe ($cmdExePath)" -ForegroundColor Yellow
     $userInput = Read-Host "請輸入 Command: Modern Operations 遊戲安裝目錄 (包含 Command.exe 的資料夾)"
-    if ([string]::IsNullOrWhiteSpace($userInput) -or -not (Test-Path (Join-Path $userInput "Command.exe"))) {
+    if ([string]::IsNullOrWhiteSpace($userInput)) {
+        Write-Host "[錯誤] 未輸入目錄，安裝中止。" -ForegroundColor Red
+        return
+    }
+    $userInput = $userInput.Trim().Trim('"').TrimEnd('\').TrimEnd('/')
+    if (-not (Test-Path (Join-Path $userInput "Command.exe"))) {
         Write-Host "[錯誤] 指定目錄未找到 Command.exe，安裝中止。" -ForegroundColor Red
         return
     }
@@ -26,14 +55,14 @@ if (-not (Test-Path $cmdExePath)) {
 
 Write-Host "[OK] 目標遊戲目錄: $TargetDir" -ForegroundColor Green
 
-# 2. 複製外掛檔案
-$srcDll = Join-Path $PSScriptRoot "CMOMapTilerPlugin.dll"
+# 2. 複製外掛檔案 (若解壓在同目錄則跳過複製自身)
+$srcDll = Join-Path $scriptDir "CMOMapTilerPlugin.dll"
 if (-not (Test-Path $srcDll)) {
-    $srcDll = Join-Path $PSScriptRoot "bin\Release\net48\CMOMapTilerPlugin.dll"
+    $srcDll = Join-Path $scriptDir "bin\Release\net48\CMOMapTilerPlugin.dll"
 }
 $dstDll = Join-Path $TargetDir "CMOMapTilerPlugin.dll"
 
-if (Test-Path $srcDll) {
+if ((Test-Path $srcDll) -and ($srcDll -ne $dstDll)) {
     Copy-Item -Path $srcDll -Destination $dstDll -Force
     Write-Host "[OK] 已複製 CMOMapTilerPlugin.dll 到遊戲目錄。" -ForegroundColor Green
 } else {
@@ -41,13 +70,16 @@ if (Test-Path $srcDll) {
         Write-Host "[錯誤] 找不到 CMOMapTilerPlugin.dll！" -ForegroundColor Red
         return
     }
+    Write-Host "[OK] CMOMapTilerPlugin.dll 已就緒。" -ForegroundColor Green
 }
 
-$srcIni = Join-Path $PSScriptRoot "MapTilerPlugin.ini"
+$srcIni = Join-Path $scriptDir "MapTilerPlugin.ini"
 $dstIni = Join-Path $TargetDir "MapTilerPlugin.ini"
-if (-not (Test-Path $dstIni) -and (Test-Path $srcIni)) {
+if ((Test-Path $srcIni) -and ($srcIni -ne $dstIni) -and (-not (Test-Path $dstIni))) {
     Copy-Item -Path $srcIni -Destination $dstIni -Force
-    Write-Host "[OK] 已產生預設 MapTilerPlugin.ini 設定檔。" -ForegroundColor Green
+    Write-Host "[OK] 已複製 MapTilerPlugin.ini 到遊戲目錄。" -ForegroundColor Green
+} elseif (Test-Path $dstIni) {
+    Write-Host "[OK] MapTilerPlugin.ini 設定檔已存在。" -ForegroundColor Green
 }
 
 # 3. 配置 Command.exe.config

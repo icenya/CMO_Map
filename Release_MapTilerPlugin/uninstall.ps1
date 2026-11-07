@@ -1,20 +1,46 @@
 # CMOMapTilerPlugin 一鍵解除安裝腳本 (PowerShell)
 [CmdletBinding()]
 param(
-    [string]$TargetDir = $PSScriptRoot
+    [string]$TargetDir = ""
 )
 
 $ErrorActionPreference = "Stop"
+
+try {
+    [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+    $OutputEncoding = [System.Text.Encoding]::UTF8
+} catch {}
 
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host "    CMOMapTilerPlugin - MapTiler 外掛解除安裝程式" -ForegroundColor Cyan
 Write-Host "============================================================" -ForegroundColor Cyan
 
+# 解析外掛所在目錄
+$scriptDir = $PSScriptRoot
+if ([string]::IsNullOrWhiteSpace($scriptDir) -and $MyInvocation.MyCommand.Path) {
+    $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+}
+if ([string]::IsNullOrWhiteSpace($scriptDir)) {
+    $scriptDir = (Get-Location).Path
+}
+
+if ([string]::IsNullOrWhiteSpace($TargetDir)) {
+    $TargetDir = $scriptDir
+}
+
+$TargetDir = $TargetDir.TrimEnd('\').TrimEnd('/')
+$scriptDir = $scriptDir.TrimEnd('\').TrimEnd('/')
+
 $cmdExePath = Join-Path $TargetDir "Command.exe"
 if (-not (Test-Path $cmdExePath)) {
-    Write-Host "[提示] 在目前目錄找不到 Command.exe。" -ForegroundColor Yellow
+    Write-Host "[提示] 在目前目錄找不到 Command.exe ($cmdExePath)" -ForegroundColor Yellow
     $userInput = Read-Host "請輸入 Command: Modern Operations 遊戲安裝目錄"
-    if ([string]::IsNullOrWhiteSpace($userInput) -or -not (Test-Path (Join-Path $userInput "Command.exe"))) {
+    if ([string]::IsNullOrWhiteSpace($userInput)) {
+        Write-Host "[錯誤] 未輸入目錄，解除安裝中止。" -ForegroundColor Red
+        return
+    }
+    $userInput = $userInput.Trim().Trim('"').TrimEnd('\').TrimEnd('/')
+    if (-not (Test-Path (Join-Path $userInput "Command.exe"))) {
         Write-Host "[錯誤] 指定目錄未找到 Command.exe，解除安裝中止。" -ForegroundColor Red
         return
     }
